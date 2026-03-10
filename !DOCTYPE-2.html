@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TriFare</title>
+
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<style>
+body { margin:0; font-family:Arial; background:#111; color:white; text-align:center;}
+#map { height:50vh; }
+.panel { padding:10px; }
+button { padding:10px; margin:5px; }
+input { padding:5px; width:80px; }
+.history { max-height:150px; overflow:auto; background:#222; padding:5px;}
+</style>
+</head>
+<body>
+
+<h2>TriFare Smart Meter</h2>
+<div id="map"></div>
+
+<div class="panel">
+Distance: <span id="distance">0.000</span> km<br>
+Fare: PhP <span id="fare">0.00</span><br>
+Duration: <span id="time">0</span> sec
+</div>
+
+<button onclick="startTrip()">Start</button>
+<button onclick="stopTrip()">Stop</button>
+<button onclick="resetTrip()">Reset</button>
+
+<hr>
+
+<h3>Passenger Type</h3>
+
+<button onclick="setFare(25,5)">Solo Regular<br>PhP25 first km | PhP5/km</button>
+
+<button onclick="setFare(45,10)">Multiple Regular<br>PhP45 first km | PhP10/km</button>
+
+<button onclick="setFare(20,5)">Solo Special<br>PhP20 first km | PhP5/km</button>
+
+<button onclick="setFare(40,10)">Multiple Special<br>PhP40 first km | PhP10/km</button>
+
+<br><br>
+Selected Fare: PhP<span id="selectedBase">0</span> first km | PhP<span id="selectedRate">0</span>/km
+
+<hr>
+
+<h3>Trip History</h3>
+<div class="history" id="history"></div>
+
+<script>
+let map = L.map('map').setView([14.5995,120.9842],15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+let marker;
+let polyline = L.polyline([], {color:'red'}).addTo(map);
+
+setTimeout(()=>{ map.invalidateSize(); },500);
+
+let watchId;
+let totalDistance=0;
+let lastLatLng=null;
+let startTime;
+let timerInterval;
+
+let firstKmFare = 0;
+let ratePerKm = 0;
+
+function setFare(firstKm, rate){
+  firstKmFare = firstKm;
+  ratePerKm = rate;
+
+document.getElementById("selectedBase").innerText = firstKm;
+  document.getElementById("selectedRate").innerText = rate;
+}
+
+function saveSettings(){
+  baseFare = parseFloat(document.getElementById("baseFareInput").value);
+  ratePerKm = parseFloat(document.getElementById("rateInput").value);
+  localStorage.setItem("baseFare",baseFare);
+  localStorage.setItem("ratePerKm",ratePerKm);
+  alert("Saved!");
+}
+
+<input id="baseFareInput">
+<input id="rateInput">
+
+function startTrip(){
+  startTime = Date.now();
+  timerInterval = setInterval(updateTime,1000);
+
+watchId = navigator.geolocation.watchPosition(
+  updatePosition,
+  (error)=>alert("GPS Error: " + error.message),
+  { enableHighAccuracy:true }
+);
+}
+
+function stopTrip(){
+  navigator.geolocation.clearWatch(watchId);
+  clearInterval(timerInterval);
+  saveTrip();
+}
+
+function resetTrip(){
+  totalDistance=0;
+  lastLatLng=null;
+  polyline.setLatLngs([]);
+  document.getElementById("distance").innerText="0.000";
+  document.getElementById("fare").innerText="0.00";
+  document.getElementById("time").innerText="0";
+}
+
+function updateTime(){
+  let duration = Math.floor((Date.now()-startTime)/1000);
+  document.getElementById("time").innerText = duration;
+}
+
+function updatePosition(position){
+  let lat = position.coords.latitude;
+  let lng = position.coords.longitude;
+  let current = L.latLng(lat,lng);
+
+  if(!marker){ marker = L.marker(current).addTo(map);}
+  else{ marker.setLatLng(current); }
+
+  polyline.addLatLng(current);
+  map.setView(current);
+
+  if(lastLatLng){
+    totalDistance += lastLatLng.distanceTo(current)/1000;
+  }
+
+  lastLatLng = current;
+
+let fare = 0;
+
+if(totalDistance <= 1){
+  fare = firstKmFare;
+}else{
+  fare = firstKmFare + ((totalDistance - 1) * ratePerKm);
+}
+  document.getElementById("distance").innerText=totalDistance.toFixed(3);
+  document.getElementById("fare").innerText=fare.toFixed(2);
+}
+
+function saveTrip(){
+let fare = 0;
+
+if(totalDistance <= 1){
+  fare = firstKmFare;
+}else{
+  fare = firstKmFare + ((totalDistance - 1) * ratePerKm);
+}
+  let duration = Math.floor((Date.now()-startTime)/1000);
+  let trip = {
+    date: new Date().toLocaleString(),
+    distance: totalDistance.toFixed(2),
+    fare: fare.toFixed(2),
+    duration: duration
+  };
+
+  let trips = JSON.parse(localStorage.getItem("trips")||"[]");
+  trips.push(trip);
+  localStorage.setItem("trips",JSON.stringify(trips));
+  loadHistory();
+}
+
+function loadHistory(){
+  let trips = JSON.parse(localStorage.getItem("trips")||"[]");
+  let historyDiv=document.getElementById("history");
+  historyDiv.innerHTML="";
+  trips.reverse().forEach(t=>{
+    historyDiv.innerHTML += 
+    `<div>${t.date}<br>${t.distance} km | PhP${t.fare} | ${t.duration}s</div><hr>`;
+  });
+}
+
+loadHistory();
+</script>
+
+</body>
+</html>
