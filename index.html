@@ -34,14 +34,12 @@ Duration: <span id="time">0</span> sec
 
 <hr>
 
-<h3>Passenger Type</h3>
+<h3>Fare Settings</h3>
+
 
 <button onclick="setFare(25,5)">Solo Regular<br>PhP25 first km | PhP5/km</button>
-
 <button onclick="setFare(45,10)">Multiple Regular<br>PhP45 first km | PhP10/km</button>
-
 <button onclick="setFare(20,5)">Solo Special<br>PhP20 first km | PhP5/km</button>
-
 <button onclick="setFare(40,10)">Multiple Special<br>PhP40 first km | PhP10/km</button>
 
 <br><br>
@@ -59,8 +57,6 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 let marker;
 let polyline = L.polyline([], {color:'red'}).addTo(map);
 
-setTimeout(()=>{ map.invalidateSize(); },500);
-
 let watchId;
 let totalDistance=0;
 let lastLatLng=null;
@@ -74,9 +70,10 @@ function setFare(firstKm, rate){
   firstKmFare = firstKm;
   ratePerKm = rate;
 
-document.getElementById("selectedBase").innerText = firstKm;
+  document.getElementById("selectedBase").innerText = firstKm;
   document.getElementById("selectedRate").innerText = rate;
 }
+
 
 function saveSettings(){
   baseFare = parseFloat(document.getElementById("baseFareInput").value);
@@ -86,18 +83,10 @@ function saveSettings(){
   alert("Saved!");
 }
 
-<input id="baseFareInput">
-<input id="rateInput">
-
 function startTrip(){
   startTime = Date.now();
   timerInterval = setInterval(updateTime,1000);
-
-watchId = navigator.geolocation.watchPosition(
-  updatePosition,
-  (error)=>alert("GPS Error: " + error.message),
-  { enableHighAccuracy:true }
-);
+  watchId = navigator.geolocation.watchPosition(updatePosition);
 }
 
 function stopTrip(){
@@ -137,25 +126,14 @@ function updatePosition(position){
 
   lastLatLng = current;
 
-let fare = 0;
+  let fare = baseFare + (totalDistance*ratePerKm);
 
-if(totalDistance <= 1){
-  fare = firstKmFare;
-}else{
-  fare = firstKmFare + ((totalDistance - 1) * ratePerKm);
-}
   document.getElementById("distance").innerText=totalDistance.toFixed(3);
   document.getElementById("fare").innerText=fare.toFixed(2);
 }
 
 function saveTrip(){
-let fare = 0;
-
-if(totalDistance <= 1){
-  fare = firstKmFare;
-}else{
-  fare = firstKmFare + ((totalDistance - 1) * ratePerKm);
-}
+  let fare = baseFare + (totalDistance*ratePerKm);
   let duration = Math.floor((Date.now()-startTime)/1000);
   let trip = {
     date: new Date().toLocaleString(),
